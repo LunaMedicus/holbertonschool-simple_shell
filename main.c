@@ -43,7 +43,7 @@ if (full == NULL)
 free(path_copy);
 return (NULL);
 }
-sprintf(full, "%s/%s", dir, cmd);
+		snprintf(full, len, "%s/%s", dir, cmd);
 if (access(full, X_OK) == 0)
 {
 free(path_copy);
@@ -105,7 +105,8 @@ return (1);
  */
 static void shell_loop(char *prog)
 {
-char *line, *cmd, *status_token, **env;
+	char *line, *cmd, *status_token, *endptr, **env;
+	long int code;
 size_t len;
 ssize_t read_len;
 unsigned long int line_no;
@@ -132,13 +133,17 @@ line[read_len - 1] = '\0';
 cmd = strtok(line, " \t");
 if (cmd == NULL)
 continue;
-if (strcmp(cmd, "exit") == 0)
-{
-status_token = strtok(NULL, " \t");
-if (status_token != NULL)
-status = atoi(status_token);
-break;
-}
+		if (strcmp(cmd, "exit") == 0)
+		{
+			status_token = strtok(NULL, " \t");
+			if (status_token != NULL)
+			{
+				code = strtol(status_token, &endptr, 10);
+				if (*endptr == '\0')
+					status = (unsigned char)code;
+			}
+			break;
+		}
 if (strcmp(cmd, "env") == 0)
 {
 env = environ;
