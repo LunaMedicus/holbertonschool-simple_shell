@@ -1,166 +1,29 @@
 #include "shell.h"
 
+int run_command(char *prog, unsigned long int line, char **argv_exec);
+
 /**
- * print_not_found - prints command not found error
- * @prog: program name
- * @line: input line number
- * @cmd: command name
+ * read_command_line - reads one command line from stdin
+ * @line: line buffer
+ * @len: line buffer length
+ * Return: 0 on success, -1 on EOF/error
  */
-static void print_not_found(char *prog, unsigned long int line, char *cmd)
+static int read_command_line(char **line, size_t *len)
 {
-fprintf(stderr, "%s: %lu: %s: not found\n", prog, line, cmd);
+ssize_t read_len;
+
+if (isatty(STDIN_FILENO))
+write(STDOUT_FILENO, "($) ", 4);
+read_len = getline(line, len, stdin);
+if (read_len == -1)
+{
+if (isatty(STDIN_FILENO))
+write(STDOUT_FILENO, "\n", 1);
+return (-1);
 }
-
-/**
- * is_executable_file - checks if path is an executable regular file
- * @path: file path
- * Return: 1 if executable regular file, 0 otherwise
- */
-static int is_executable_file(char *path)
-{
-struct stat st;
-
-if (access(path, X_OK) != 0)
+if (read_len > 0 && (*line)[read_len - 1] == '\n')
+(*line)[read_len - 1] = '\0';
 return (0);
-if (stat(path, &st) == -1)
-return (0);
-return (S_ISREG(st.st_mode));
-}
-
-/**
- * build_path_candidate - builds candidate path for command lookup
- * @dir_start: start of path directory segment
- * @dir_len: length of path directory segment
- * @cmd: command name
- * Return: allocated candidate path or NULL
- */
-static char *build_path_candidate(char *dir_start, size_t dir_len, char *cmd)
-{
-char *candidate;
-size_t cmd_len, total_len;
-
-cmd_len = strlen(cmd);
-if (dir_len == 0)
-{
-total_len = cmd_len + 3;
-candidate = malloc(total_len);
-if (candidate == NULL)
-return (NULL);
-candidate[0] = '.';
-candidate[1] = '/';
-memcpy(candidate + 2, cmd, cmd_len + 1);
-return (candidate);
-}
-total_len = dir_len + cmd_len + 2;
-candidate = malloc(total_len);
-if (candidate == NULL)
-return (NULL);
-memcpy(candidate, dir_start, dir_len);
-candidate[dir_len] = '/';
-memcpy(candidate + dir_len + 1, cmd, cmd_len + 1);
-return (candidate);
-}
-
-/**
- * get_env_value - gets environment variable value from environ
- * @name: variable name
- * Return: pointer to value in environ or NULL if not found
- */
-static char *get_env_value(char *name)
-{
-char **envp;
-size_t name_len;
-
-name_len = strlen(name);
-envp = environ;
-while (*envp != NULL)
-{
-if (strncmp(*envp, name, name_len) == 0 && (*envp)[name_len] == '=')
-return (*envp + name_len + 1);
-envp++;
-}
-return (NULL);
-}
-
-/**
- * resolve_command - resolves executable path from command
- * @cmd: command name
- * Return: allocated executable path or NULL
- */
-static char *resolve_command(char *cmd)
-{
-char *path, *cursor, *dir_start, *candidate;
-size_t dir_len;
-
-if (strchr(cmd, '/') != NULL)
-{
-if (is_executable_file(cmd))
-return (strdup(cmd));
-return (NULL);
-}
-path = get_env_value("PATH");
-if (path == NULL)
-return (NULL);
-dir_start = path;
-cursor = path;
-while (1)
-{
-if (*cursor == ':' || *cursor == '\0')
-{
-dir_len = cursor - dir_start;
-candidate = build_path_candidate(dir_start, dir_len, cmd);
-if (candidate == NULL)
-return (NULL);
-if (is_executable_file(candidate))
-return (candidate);
-free(candidate);
-if (*cursor == '\0')
-break;
-dir_start = cursor + 1;
-}
-cursor++;
-}
-return (NULL);
-}
-
-/**
- * run_command - executes a command in child process
- * @prog: program name
- * @line: input line number
- * @argv_exec: command arguments vector
- * Return: child exit status
- */
-static int run_command(char *prog, unsigned long int line, char **argv_exec)
-{
-pid_t pid;
-int status;
-char *path;
-
-path = resolve_command(argv_exec[0]);
-if (path == NULL)
-{
-print_not_found(prog, line, argv_exec[0]);
-return (127);
-}
-pid = fork();
-if (pid == -1)
-{
-perror(prog);
-free(path);
-return (1);
-}
-if (pid == 0)
-{
-execve(path, argv_exec, environ);
-perror(prog);
-free(path);
-exit(126);
-}
-free(path);
-waitpid(pid, &status, 0);
-if (WIFEXITED(status))
-return (WEXITSTATUS(status));
-return (1);
 }
 
 /**
@@ -171,7 +34,6 @@ static void shell_loop(char *prog)
 {
 char *line, **argv_exec;
 size_t len;
-ssize_t read_len;
 unsigned long int line_no;
 int status, should_exit;
 
@@ -182,22 +44,9 @@ status = 0;
 argv_exec = NULL;
 while (1)
 {
-if (isatty(STDIN_FILENO))
-{
-write(STDOUT_FILENO, "($) ", 4);
-}
-read_len = getline(&line, &len, stdin);
-if (read_len == -1)
-{
-if (isatty(STDIN_FILENO))
-{
-write(STDOUT_FILENO, "\n", 1);
-}
+if (read_command_line(&line, &len) == -1)
 break;
-}
 line_no++;
-if (read_len > 0 && line[read_len - 1] == '\n')
-line[read_len - 1] = '\0';
 if (tokenize_line(line, prog, &argv_exec, &status) == 0)
 continue;
 should_exit = 0;
