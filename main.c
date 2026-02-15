@@ -62,6 +62,27 @@ return (candidate);
 }
 
 /**
+ * get_env_value - gets environment variable value from environ
+ * @name: variable name
+ * Return: pointer to value in environ or NULL if not found
+ */
+static char *get_env_value(char *name)
+{
+char **envp;
+size_t name_len;
+
+name_len = strlen(name);
+envp = environ;
+while (*envp != NULL)
+{
+if (strncmp(*envp, name, name_len) == 0 && (*envp)[name_len] == '=')
+return (*envp + name_len + 1);
+envp++;
+}
+return (NULL);
+}
+
+/**
  * resolve_command - resolves executable path from command
  * @cmd: command name
  * Return: allocated executable path or NULL
@@ -77,7 +98,7 @@ if (is_executable_file(cmd))
 return (strdup(cmd));
 return (NULL);
 }
-path = getenv("PATH");
+path = get_env_value("PATH");
 if (path == NULL)
 return (NULL);
 dir_start = path;
