@@ -12,47 +12,93 @@ fprintf(stderr, "%s: %lu: %s: not found\n", prog, line, cmd);
 }
 
 /**
+ * is_executable_file - checks if path is an executable regular file
+ * @path: file path
+ * Return: 1 if executable regular file, 0 otherwise
+ */
+static int is_executable_file(char *path)
+{
+struct stat st;
+
+if (access(path, X_OK) != 0)
+return (0);
+if (stat(path, &st) == -1)
+return (0);
+return (S_ISREG(st.st_mode));
+}
+
+/**
+ * build_path_candidate - builds candidate path for command lookup
+ * @dir_start: start of path directory segment
+ * @dir_len: length of path directory segment
+ * @cmd: command name
+ * Return: allocated candidate path or NULL
+ */
+static char *build_path_candidate(char *dir_start, size_t dir_len, char *cmd)
+{
+char *candidate;
+size_t cmd_len, total_len;
+
+cmd_len = strlen(cmd);
+if (dir_len == 0)
+{
+total_len = cmd_len + 3;
+candidate = malloc(total_len);
+if (candidate == NULL)
+return (NULL);
+candidate[0] = '.';
+candidate[1] = '/';
+memcpy(candidate + 2, cmd, cmd_len + 1);
+return (candidate);
+}
+total_len = dir_len + cmd_len + 2;
+candidate = malloc(total_len);
+if (candidate == NULL)
+return (NULL);
+memcpy(candidate, dir_start, dir_len);
+candidate[dir_len] = '/';
+memcpy(candidate + dir_len + 1, cmd, cmd_len + 1);
+return (candidate);
+}
+
+/**
  * resolve_command - resolves executable path from command
  * @cmd: command name
  * Return: allocated executable path or NULL
  */
 static char *resolve_command(char *cmd)
 {
-char *path, *path_copy, *dir, *full;
-size_t len;
+char *path, *cursor, *dir_start, *candidate;
+size_t dir_len;
 
 if (strchr(cmd, '/') != NULL)
 {
-if (access(cmd, X_OK) == 0)
+if (is_executable_file(cmd))
 return (strdup(cmd));
 return (NULL);
 }
 path = getenv("PATH");
 if (path == NULL)
 return (NULL);
-path_copy = strdup(path);
-if (path_copy == NULL)
+dir_start = path;
+cursor = path;
+while (1)
+{
+if (*cursor == ':' || *cursor == '\0')
+{
+dir_len = cursor - dir_start;
+candidate = build_path_candidate(dir_start, dir_len, cmd);
+if (candidate == NULL)
 return (NULL);
-dir = strtok(path_copy, ":");
-while (dir != NULL)
-{
-len = strlen(dir) + strlen(cmd) + 2;
-full = malloc(len);
-if (full == NULL)
-{
-free(path_copy);
-return (NULL);
+if (is_executable_file(candidate))
+return (candidate);
+free(candidate);
+if (*cursor == '\0')
+break;
+dir_start = cursor + 1;
 }
-		snprintf(full, len, "%s/%s", dir, cmd);
-if (access(full, X_OK) == 0)
-{
-free(path_copy);
-return (full);
+cursor++;
 }
-free(full);
-dir = strtok(NULL, ":");
-}
-free(path_copy);
 return (NULL);
 }
 
