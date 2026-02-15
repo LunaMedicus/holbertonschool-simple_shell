@@ -96,18 +96,10 @@ return (1);
  */
 int handle_builtin(char **argv_exec, int *status, int *should_exit)
 {
-char *status_token, *endptr;
-long int code;
+(void)status;
 
 if (strcmp(argv_exec[0], "exit") == 0)
 {
-status_token = argv_exec[1];
-if (status_token != NULL)
-{
-code = strtol(status_token, &endptr, 10);
-if (*endptr == '\0')
-*status = (unsigned char)code;
-}
 *should_exit = 1;
 return (1);
 }
