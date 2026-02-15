@@ -20,7 +20,7 @@ programs found in the current `PATH`, and repeats until the user exits.
 Compile with `gcc` using the required flags:
 
 ```sh
-gcc -Wall -Werror -Wextra -pedantic *.c -o hsh
+gcc -Wall -Werror -Wextra -pedantic -std=gnu89 *.c -o hsh
 ```
 
 ## Usage
