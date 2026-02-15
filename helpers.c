@@ -1,7 +1,10 @@
 #include "shell.h"
 
 /**
- * print_env - prints the environment
+ * print_env - print current process environment variables
+ *
+ * Iterates over global environ and writes one "KEY=VALUE" entry per line.
+ * Used by the `env` builtin.
  */
 void print_env(void)
 {
@@ -16,12 +19,15 @@ env++;
 }
 
 /**
- * grow_argv - grows argv buffer
- * @argv_exec: argv buffer address
- * @argv_cap: argv capacity
+ * grow_argv - resize token array when current capacity is exhausted
+ * @argv_exec: address of argv pointer to reallocate
+ * @argv_cap: pointer to current argv capacity (doubled on success)
  * @prog: program name
- * @status: shell status
- * Return: 1 on success, 0 on failure
+ * @status: shell status updated to 1 on allocation failure
+ *
+ * On realloc failure, this function frees the existing argv buffer because the
+ * caller cannot continue token collection without storage.
+ * Return: 1 on successful resize, 0 on failure
  */
 static int grow_argv(char ***argv_exec, size_t *argv_cap,
 char *prog, int *status)
@@ -43,12 +49,15 @@ return (1);
 }
 
 /**
- * tokenize_line - tokenizes input line into argv array
- * @line: input line
+ * tokenize_line - split raw input into an exec-ready argv array
+ * @line: mutable input line buffer (modified in place by strtok)
  * @prog: program name
- * @argv_exec: output argv array
- * @status: shell status to update on allocation failure
- * Return: 1 if command exists, 0 otherwise
+ * @argv_exec: output location for allocated NULL-terminated argv array
+ * @status: shell status updated on memory allocation errors
+ *
+ * Ignores empty lines and full-line comments beginning with '#'. Tokens are
+ * separated on spaces and tabs only, with dynamic growth as needed.
+ * Return: 1 when at least one tokenized command is available, else 0
  */
 int tokenize_line(char *line, char *prog, char ***argv_exec, int *status)
 {
@@ -88,11 +97,15 @@ return (1);
 }
 
 /**
- * handle_builtin - handles shell builtins
- * @argv_exec: command arguments
- * @status: shell status
- * @should_exit: set to 1 when shell must exit
- * Return: 1 if builtin handled, 0 otherwise
+ * handle_builtin - dispatch builtins recognized by this shell
+ * @argv_exec: parsed command vector, command name at index 0
+ * @status: reserved for builtin status propagation
+ * @should_exit: output flag set to 1 when `exit` is requested
+ *
+ * Supported builtins:
+ * - exit: request termination of the shell loop
+ * - env: print environment variables
+ * Return: 1 when command was handled as a builtin, otherwise 0
  */
 int handle_builtin(char **argv_exec, int *status, int *should_exit)
 {

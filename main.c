@@ -1,10 +1,13 @@
 #include "shell.h"
 
 /**
- * print_not_found - prints command not found error
+ * print_not_found - emit the standard shell-style "command not found" error
  * @prog: program name
- * @line: input line number
- * @cmd: command name
+ * @line: command counter used in error reporting
+ * @cmd: command that failed path resolution
+ *
+ * Format intentionally matches project requirement:
+ * "<prog>: <line>: <cmd>: not found"
  */
 static void print_not_found(char *prog, unsigned long int line, char *cmd)
 {
@@ -12,9 +15,12 @@ fprintf(stderr, "%s: %lu: %s: not found\n", prog, line, cmd);
 }
 
 /**
- * is_executable_file - checks if path is an executable regular file
- * @path: file path
- * Return: 1 if executable regular file, 0 otherwise
+ * is_executable_file - validate that a path points to a runnable file
+ * @path: candidate filesystem path
+ *
+ * First checks execute permission with access(2), then confirms the path is a
+ * regular file via stat(2). This rejects directories and special files.
+ * Return: 1 when @path is executable and regular, otherwise 0
  */
 static int is_executable_file(char *path)
 {
@@ -28,11 +34,14 @@ return (S_ISREG(st.st_mode));
 }
 
 /**
- * build_path_candidate - builds candidate path for command lookup
- * @dir_start: start of path directory segment
- * @dir_len: length of path directory segment
- * @cmd: command name
- * Return: allocated candidate path or NULL
+ * build_path_candidate - assemble one executable candidate from PATH + command
+ * @dir_start: start of current PATH segment
+ * @dir_len: length of current PATH segment
+ * @cmd: command name to append
+ *
+ * Empty PATH segments are treated as the current directory and expanded as
+ * "./<cmd>". Returned string is heap-allocated and must be freed by caller.
+ * Return: allocated candidate string on success, or NULL on allocation failure
  */
 static char *build_path_candidate(char *dir_start, size_t dir_len, char *cmd)
 {
@@ -62,9 +71,12 @@ return (candidate);
 }
 
 /**
- * get_env_value - gets environment variable value from environ
+ * get_env_value - fetch environment variable value directly from environ
  * @name: variable name
- * Return: pointer to value in environ or NULL if not found
+ *
+ * Performs a linear scan of environ for a "name=value" entry and returns a
+ * pointer to the value region inside environ storage (not a copy).
+ * Return: pointer to value if found, otherwise NULL
  */
 static char *get_env_value(char *name)
 {
@@ -83,9 +95,14 @@ return (NULL);
 }
 
 /**
- * resolve_command - resolves executable path from command
+ * resolve_command - resolve a command name into an executable absolute/relative path
  * @cmd: command name
- * Return: allocated executable path or NULL
+ *
+ * If @cmd contains '/', it is treated as an explicit path and validated
+ * directly. Otherwise, each directory from PATH is searched left-to-right until
+ * an executable regular file is found. Returned string is allocated and owned
+ * by the caller.
+ * Return: allocated resolved path on success, or NULL if not found/error
  */
 static char *resolve_command(char *cmd)
 {
@@ -124,11 +141,15 @@ return (NULL);
 }
 
 /**
- * run_command - executes a command in child process
+ * run_command - execute a non-builtin command using fork/execve
  * @prog: program name
- * @line: input line number
- * @argv_exec: command arguments vector
- * Return: child exit status
+ * @line: command counter for error reporting
+ * @argv_exec: NULL-terminated argument vector (argv_exec[0] is command)
+ *
+ * Resolves the command path, forks a child, executes via execve(2), and waits
+ * in the parent for completion. Mirrors shell semantics by returning 127 for
+ * command-not-found and child's exit code when available.
+ * Return: resulting status code to keep as shell status
  */
 static int run_command(char *prog, unsigned long int line, char **argv_exec)
 {
@@ -164,10 +185,13 @@ return (1);
 }
 
 /**
- * read_command_line - reads one command line from stdin
- * @line: line buffer
- * @len: line buffer length
- * Return: 0 on success, -1 on EOF/error
+ * read_command_line - read and normalize one input line from standard input
+ * @line: getline-managed buffer pointer (allocated/reused by getline)
+ * @len: size of buffer tracked for getline
+ *
+ * Displays prompt in interactive mode, reads one line with getline(3), and
+ * strips the trailing newline when present.
+ * Return: 0 when a line was read, -1 on EOF/read failure
  */
 static int read_command_line(char **line, size_t *len)
 {
@@ -188,8 +212,12 @@ return (0);
 }
 
 /**
- * shell_loop - reads and executes command lines
+ * shell_loop - main REPL loop for parsing, dispatching, and status tracking
  * @prog: program name
+ *
+ * Repeatedly reads input, tokenizes it, handles builtins, and executes external
+ * commands. The function keeps the last command status and exits the process
+ * with that status when input ends or an exit builtin is requested.
  */
 static void shell_loop(char *prog)
 {
@@ -223,10 +251,13 @@ exit(status);
 }
 
 /**
- * main - entry point of the shell
- * @argc: number of args
- * @argv: argument vector
- * Return: always 0
+ * main - shell program entry point
+ * @argc: number of command-line arguments (unused)
+ * @argv: argument vector, argv[0] used as program name in diagnostics
+ *
+ * Delegates execution to shell_loop(), which owns process termination and exit
+ * status. Return path is kept for completeness.
+ * Return: 0 (not reached during normal shell_loop lifecycle)
  */
 int main(int argc, char **argv)
 {
