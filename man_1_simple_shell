@@ -1,0 +1,52 @@
+.TH hsh 1 "February 2026" "simple_shell" "User Commands"
+.SH NAME
+hsh \- simple UNIX command interpreter
+.SH SYNOPSIS
+.B hsh
+.RI [ file ]
+.SH DESCRIPTION
+.B hsh
+is a simple command language interpreter that executes commands read from
+standard input.
+
+In interactive mode,
+.B hsh
+prints a prompt, reads a command line, parses it, and executes it.
+In non-interactive mode, it reads commands from piped input or a file.
+
+The shell executes external programs by searching directories listed in
+the
+.B PATH
+environment variable.
+.SH BUILTINS
+.TP
+.B exit
+Exit the shell. Can optionally receive an exit status.
+.TP
+.B env
+Print the current environment.
+.SH RETURN VALUE
+On success, commands return status code 0. On failure, non-zero status codes
+are returned. The shell keeps running until an
+.B exit
+command or end-of-file is encountered.
+.SH EXAMPLES
+Interactive:
+.PP
+.RS
+./hsh
+.br
+($) /bin/ls
+.br
+($) env
+.br
+($) exit
+.RE
+.PP
+Non-interactive:
+.PP
+.RS
+echo "/bin/ls" | ./hsh
+.RE
+.SH AUTHORS
+See the AUTHORS file in the project root for contributors.
