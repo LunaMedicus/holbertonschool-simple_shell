@@ -10,4 +10,8 @@
 
 extern char **environ;
 
+int tokenize_line(char *line, char *prog, char ***argv_exec, int *status);
+int handle_builtin(char **argv_exec, int *status, int *should_exit);
+void print_env(void);
+
 #endif

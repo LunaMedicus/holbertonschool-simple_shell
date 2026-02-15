@@ -60,20 +60,19 @@ return (NULL);
  * run_command - executes a command in child process
  * @prog: program name
  * @line: input line number
- * @cmd: command name
+ * @argv_exec: command arguments vector
  * Return: child exit status
  */
-static int run_command(char *prog, unsigned long int line, char *cmd)
+static int run_command(char *prog, unsigned long int line, char **argv_exec)
 {
 pid_t pid;
 int status;
 char *path;
-char *argv_exec[2];
 
-path = resolve_command(cmd);
+path = resolve_command(argv_exec[0]);
 if (path == NULL)
 {
-print_not_found(prog, line, cmd);
+print_not_found(prog, line, argv_exec[0]);
 return (127);
 }
 pid = fork();
@@ -85,8 +84,6 @@ return (1);
 }
 if (pid == 0)
 {
-argv_exec[0] = cmd;
-argv_exec[1] = NULL;
 execve(path, argv_exec, environ);
 perror(prog);
 free(path);
@@ -105,56 +102,44 @@ return (1);
  */
 static void shell_loop(char *prog)
 {
-	char *line, *cmd, *status_token, *endptr, **env;
-	long int code;
+char *line, **argv_exec;
 size_t len;
 ssize_t read_len;
 unsigned long int line_no;
-int status;
+int status, should_exit;
 
 line = NULL;
 len = 0;
 line_no = 0;
 status = 0;
+argv_exec = NULL;
 while (1)
 {
 if (isatty(STDIN_FILENO))
+{
 write(STDOUT_FILENO, "($) ", 4);
+}
 read_len = getline(&line, &len, stdin);
 if (read_len == -1)
 {
 if (isatty(STDIN_FILENO))
+{
 write(STDOUT_FILENO, "\n", 1);
+}
 break;
 }
 line_no++;
 if (read_len > 0 && line[read_len - 1] == '\n')
 line[read_len - 1] = '\0';
-cmd = strtok(line, " \t");
-if (cmd == NULL)
+if (tokenize_line(line, prog, &argv_exec, &status) == 0)
 continue;
-		if (strcmp(cmd, "exit") == 0)
-		{
-			status_token = strtok(NULL, " \t");
-			if (status_token != NULL)
-			{
-				code = strtol(status_token, &endptr, 10);
-				if (*endptr == '\0')
-					status = (unsigned char)code;
-			}
-			break;
-		}
-if (strcmp(cmd, "env") == 0)
-{
-env = environ;
-while (*env != NULL)
-{
-printf("%s\n", *env);
-env++;
-}
-continue;
-}
-status = run_command(prog, line_no, cmd);
+should_exit = 0;
+if (handle_builtin(argv_exec, &status, &should_exit) == 0)
+status = run_command(prog, line_no, argv_exec);
+free(argv_exec);
+argv_exec = NULL;
+if (should_exit)
+break;
 }
 free(line);
 exit(status);
